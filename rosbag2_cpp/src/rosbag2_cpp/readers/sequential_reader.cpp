@@ -130,13 +130,22 @@ void SequentialReader::open(
     ROSBAG2_CPP_LOG_WARN("No topics were listed in metadata.");
     return;
   }
-  fill_topics_metadata();
+
+  // Set the current storage serialization format to the output serialization format
+  storage_serialization_format = converter_options.output_serialization_format;
 
   // Currently a bag file can only be played if all topics have the same serialization format.
   check_topics_serialization_formats(topics);
   check_converter_serialization_format(
     converter_options.output_serialization_format,
-    topics[0].topic_metadata.serialization_format);
+    storage_serialization_format);
+
+  // Fill topics metadata. The storage serialization format is known by this point, so only supported
+  // topics will be added
+  fill_topics_metadata();
+
+  // Set initial filter to read all supported topics.
+  set_filter({});
 }
 
 bool SequentialReader::set_read_order(const rosbag2_storage::ReadOrder & order)
@@ -207,7 +216,28 @@ void SequentialReader::get_all_message_definitions(
 void SequentialReader::set_filter(
   const rosbag2_storage::StorageFilter & storage_filter)
 {
-  topics_filter_ = storage_filter;
+  // Clear the current topics_filter
+  topics_filter_ = {};
+
+  // Create a new filter that is the intersection of the storage filter and the topics metadata.
+  if(storage_filter.topics.empty()) { // Empty filter. Add all topics with a supported serialization format.
+    for(const auto & topic : topics_metadata_) {
+      if (topic.serialization_format != storage_serialization_format) {
+        topics_filter_.topics.push_back(topic.name);
+      }
+    }
+  } else {  // Non-empty filter. Add all requested topics with a supported serialization format.
+    for (const auto& topic : storage_filter.topics) {
+      auto it = std::find_if(topics_metadata_.begin(), topics_metadata_.end(),
+                             [&topic](const auto& topic_metadata) { return topic_metadata.name == topic; });
+      if (it != topics_metadata_.end()) {
+        topics_filter_.topics.push_back(topic);
+      } else {
+        ROSBAG2_CPP_LOG_WARN("Requested topic %s not found or has unsupported serialization format.", topic.c_str());
+      }
+    }
+  }
+
   if (storage_) {
     storage_->set_filter(topics_filter_);
     return;
@@ -312,17 +342,39 @@ std::string SequentialReader::get_current_uri() const
   return current_uri.generic_string();
 }
 
+
 void SequentialReader::check_topics_serialization_formats(
   const std::vector<rosbag2_storage::TopicInformation> & topics)
 {
-  auto storage_serialization_format = topics[0].topic_metadata.serialization_format;
-  for (const auto & topic : topics) {
-    if (topic.topic_metadata.serialization_format != storage_serialization_format) {
-      throw std::runtime_error(
-              "Topics with different rmw serialization format have been found. "
-              "All topics must have the same serialization format.");
+
+  // Check if we have any messages stored in the output serialization format. If that's the case, we don't need to check all converter plugins.
+  bool need_topic_conversion = true;
+  for (const auto & topic: topics) {
+    if(topic.topic_metadata.serialization_format == storage_serialization_format) {
+      need_topic_conversion = false;
+      break;
     }
   }
+
+  // If we haven't found any messages in the output serialization format, lets see if we have any serialization format we can convert from.
+  if(need_topic_conversion) {
+    bool found_topic_to_convert = false;
+    storage_serialization_format = "";  // Clarify that we haven't found any serialization format to convert from.
+    for (const auto& topic : topics) {
+      if (converter_factory_->load_deserializer(topic.topic_metadata.serialization_format) != nullptr) {
+        storage_serialization_format = topic.topic_metadata.serialization_format;
+        found_topic_to_convert = true;
+        break;
+      }
+    }
+
+    // If we cannot convert, fail.
+    if (!found_topic_to_convert) {
+      throw std::runtime_error("No topics with a known serialization format have been found. ");
+    }
+  }
+
+  // User is warned of non-supported topics in set_filter
 }
 
 void SequentialReader::check_converter_serialization_format(
@@ -343,13 +395,21 @@ void SequentialReader::check_converter_serialization_format(
   }
 }
 
-void SequentialReader::fill_topics_metadata()
-{
+void SequentialReader::fill_topics_metadata() {
   rcpputils::check_true(storage_ != nullptr, "Bag is not open. Call open() before reading.");
+
+  // Add only topics with the same serialization format as the storage serialization format
   topics_metadata_.clear();
   topics_metadata_.reserve(metadata_.topics_with_message_count.size());
-  for (const auto & topic_information : metadata_.topics_with_message_count) {
-    topics_metadata_.push_back(topic_information.topic_metadata);
+  for (const auto& topic_information : metadata_.topics_with_message_count) {
+    if (topic_information.topic_metadata.serialization_format == storage_serialization_format) {
+      topics_metadata_.push_back(topic_information.topic_metadata);
+    } else {
+      ROSBAG2_CPP_LOG_WARN("Topic %s with serialization format %s doesn't match the storage format %s.",
+                           topic_information.topic_metadata.name.c_str(),
+                           topic_information.topic_metadata.serialization_format.c_str(),
+                           storage_serialization_format.c_str());
+    }
   }
 }
 

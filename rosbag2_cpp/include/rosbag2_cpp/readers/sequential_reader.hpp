@@ -213,6 +213,8 @@ private:
 
   bag_events::EventCallbackManager callback_manager_;
   rosbag2_storage::ReadOrder read_order_{};
+
+  std::string storage_serialization_format;
 };
 
 }  // namespace readers
