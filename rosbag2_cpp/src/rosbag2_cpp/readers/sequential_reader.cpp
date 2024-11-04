@@ -203,6 +203,11 @@ void SequentialReader::set_filter(
       } else {
         ROSBAG2_CPP_LOG_WARN("Requested topic %s not found or has unsupported serialization format.", topic.c_str());
       }
+
+      // Edge case: we cannot find any supported topic. To avoid reading all messages, throw an error.
+      if (topics_filter_.topics.empty()) {
+        throw std::runtime_error("No topics found that match the filter.");
+      }
     }
   }
 
