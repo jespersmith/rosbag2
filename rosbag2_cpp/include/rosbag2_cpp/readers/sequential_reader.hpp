@@ -187,6 +187,8 @@ private:
   std::shared_ptr<SerializationFormatConverterFactoryInterface> converter_factory_{};
 
   bag_events::EventCallbackManager callback_manager_;
+
+  std::string storage_serialization_format;
 };
 
 }  // namespace readers
