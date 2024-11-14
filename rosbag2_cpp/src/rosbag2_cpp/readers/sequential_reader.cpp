@@ -181,8 +181,7 @@ void SequentialReader::set_filter(const rosbag2_storage::StorageFilter & storage
   topics_filter_ = {};
 
   // Create a new filter that is the intersection of the storage filter and the topics metadata.
-  if (storage_filter.topics.empty())
-  {
+  if (storage_filter.topics.empty()) {
     // Empty filter. Add all topics with a supported serialization format.
     for (const auto & topic : topics_metadata_) {
       topics_filter_.topics.push_back(topic.name);
