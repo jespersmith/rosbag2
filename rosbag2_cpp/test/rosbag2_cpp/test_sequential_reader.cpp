@@ -58,7 +58,12 @@ public:
     topic_with_type.name = "topic";
     topic_with_type.type = "test_msgs/BasicTypes";
     topic_with_type.serialization_format = storage_serialization_format_;
-    auto topics_and_types = std::vector<rosbag2_storage::TopicMetadata>{topic_with_type};
+    rosbag2_storage::TopicMetadata topic2_with_type;
+    topic2_with_type.name = "topic2";
+    topic2_with_type.type = "test_msgs/BasicTypes";
+    topic2_with_type.serialization_format = storage_serialization_format_;
+    auto topics_and_types =
+      std::vector<rosbag2_storage::TopicMetadata>{topic_with_type, topic2_with_type};
 
     auto message = std::make_shared<rosbag2_storage::SerializedBagMessage>();
     message->topic_name = topic_with_type.name;
@@ -72,6 +77,7 @@ public:
     metadata_.relative_file_paths = {bag_file_1_path_.string(), bag_file_2_path_.string()};
     metadata_.version = 4;
     metadata_.topics_with_message_count.push_back({{topic_with_type}, 6});
+    metadata_.topics_with_message_count.push_back({{topic2_with_type}, 1});
     metadata_.storage_identifier = "mock_storage";
 
     EXPECT_CALL(*metadata_io, read_metadata(_)).WillRepeatedly(Return(metadata_));

@@ -185,9 +185,7 @@ void SequentialReader::set_filter(const rosbag2_storage::StorageFilter & storage
   {
     // Empty filter. Add all topics with a supported serialization format.
     for (const auto & topic : topics_metadata_) {
-      if (topic.serialization_format != storage_serialization_format) {
-        topics_filter_.topics.push_back(topic.name);
-      }
+      topics_filter_.topics.push_back(topic.name);
     }
   } else {
     // Non-empty filter. Add all requested topics with a supported serialization format.
@@ -201,12 +199,12 @@ void SequentialReader::set_filter(const rosbag2_storage::StorageFilter & storage
         ROSBAG2_CPP_LOG_WARN(
           "Requested topic %s not found or has unsupported serialization format.", topic.c_str());
       }
+    }
 
-      // Edge case: we cannot find any supported topic.
-      // To avoid reading all messages, throw an error.
-      if (topics_filter_.topics.empty()) {
-        throw std::runtime_error("No topics found that match the filter.");
-      }
+    // Edge case: we cannot find any supported topic.
+    // To avoid reading all messages, throw an error.
+    if (topics_filter_.topics.empty()) {
+      throw std::runtime_error("No topics found that match the filter.");
     }
   }
 
@@ -252,7 +250,6 @@ void SequentialReader::load_current_file()
   }
   // set filters
   storage_->seek(seek_time_);
-  set_filter(topics_filter_);
 }
 
 void SequentialReader::load_next_file()
