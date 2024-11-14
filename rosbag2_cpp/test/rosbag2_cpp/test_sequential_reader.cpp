@@ -134,7 +134,9 @@ TEST_F(SequentialReaderTest, read_next_uses_converters_to_convert_serialization_
   EXPECT_CALL(*converter_factory_, load_deserializer(storage_serialization_format_))
   .WillRepeatedly(
     [](const std::string &) {
-      return std::make_unique<StrictMock<MockConverter>>();
+      auto deserializer = std::make_unique<StrictMock<MockConverter>>();
+      EXPECT_CALL(*deserializer, deserialize(_, _, _)).Times(AtMost(1));
+      return deserializer;
     });
   EXPECT_CALL(*converter_factory_, load_serializer(output_format))
   .WillOnce(Return(ByMove(std::move(format2_converter))));
